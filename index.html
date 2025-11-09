@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Biostats Connections</title>
+<meta name="description" content="A Connections-style word grouping game for Biostatistics." />
+<style>
+  :root{
+    --bg:#0b1220; --panel:#101a2e; --muted:#8aa1c1; --text:#e8eefb; --good:#2ecc71; --bad:#ff6b6b;
+    --catA:#3b82f6; --catB:#ef4444; --catC:#22c55e; --catD:#f59e0b;
+    --card:#0f1a30; --card2:#132240; --ring:#233b74;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+    background: radial-gradient(1200px 600px at 20% -10%, #142242 0%, #0b1220 60%) no-repeat,
+                radial-gradient(1000px 500px at 120% 10%, #15254a 0%, #0b1220 60%) no-repeat,
+                var(--bg); color:var(--text);
+  }
+  header{max-width:960px;margin:32px auto 16px;padding:0 16px}
+  h1{margin:0 0 8px;font-weight:800;letter-spacing:.4px}
+  .sub{color:var(--muted);font-size:.95rem}
+  .wrap{max-width:960px;margin:0 auto 80px;padding:0 16px}
+  .toolbar{
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;
+    background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+    padding:10px 12px;border-radius:16px;backdrop-filter:blur(4px)
+  }
+  .toolbar-left,.toolbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .chip{padding:8px 12px;border:1px solid rgba(255,255,255,.08);border-radius:999px;color:var(--muted)}
+  button{
+    background:#1a2a4d;border:1px solid var(--ring);color:var(--text);
+    padding:10px 14px;border-radius:12px;font-weight:600;cursor:pointer;transition:.18s ease;
+  }
+  button:hover{transform:translateY(-1px)}
+  button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn-ghost{background:transparent}
+
+  .board{margin:16px auto;max-width:960px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .card{
+    user-select:none; text-align:center; padding:18px 10px; border-radius:14px; min-height:70px;
+    display:flex; align-items:center; justify-content:center; font-weight:700; letter-spacing:.2px;
+    background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 8px 20px rgba(0,0,0,.25);
+    cursor:pointer; position:relative; transition:transform .12s ease, outline-color .12s ease;
+    outline:2px solid transparent;
+  }
+  .card:hover{transform:translateY(-1px)}
+  .card.selected{outline:2px solid #5aa2ff; box-shadow:0 0 0 4px rgba(90,162,255,.12)}
+  .card.locked{background:linear-gradient(180deg, #0c213e, #0f2a54); cursor:default; border-color:rgba(255,255,255,.12)}
+
+  .groups{display:grid;grid-template-columns:repeat(1, minmax(0,1fr));gap:10px;margin-top:18px}
+  @media(min-width:700px){.groups{grid-template-columns:repeat(2, minmax(0,1fr))}}
+  .group{
+    border:1px solid rgba(255,255,255,.10); border-radius:14px; overflow:hidden; background:rgba(255,255,255,.03);
+  }
+  .group-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;font-weight:800}
+  .group-words{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px}
+  .group-words .pill{padding:10px;border-radius:10px;text-align:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+
+  .statusbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .lives{display:flex;gap:6px}
+  .life{width:10px;height:10px;border-radius:99px;background:#2e3a56;border:1px solid rgba(255,255,255,.08)}
+  .life.on{background:var(--bad)}
+  .toast{margin-top:10px;color:var(--muted);min-height:22px}
+
+  .good{outline:2px solid var(--good) !important}
+  .bad{outline:2px solid var(--bad) !important}
+
+  .hidden{display:none !important}
+  
+  footer {
+  text-align: center;
+  margin: 60px 0 20px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+footer p {
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+</style>
+</head>
+<body>
+  <header>
+    <h1>Biostats Connections</h1>
+    <div class="sub">Find the four groups of four words based on Biostatistics themes. Select up to four cards and press <b>Submit</b>.</div>
+  </header>
+
+  <div class="wrap">
+    <div class="toolbar" role="region" aria-label="Game controls">
+      <div class="toolbar-left">
+        <span class="chip" id="roundLabel">Round 1</span>
+        <span class="chip">Mistakes Left: <span id="mistakesLeft">3</span></span>
+        
+      </div>
+      <div class="toolbar-right">
+        <button id="btnShuffle" class="btn-ghost" aria-label="Shuffle board">Shuffle</button>
+        <button id="btnDeselect" class="btn-ghost" aria-label="Deselect all">Deselect</button>
+        <button id="btnSubmit">Submit</button>
+        <button id="btnNew" class="hidden">New Round</button>
+        <button id="btnShare" class="hidden">Share</button>
+      </div>
+    </div>
+
+    <div class="statusbar" aria-live="polite">
+      <div class="lives" id="lives"></div>
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <div id="board" class="board" role="grid" ></div>
+<div id="solvedGroups" class="groups" aria-label="Solved groups"></div>
+<footer>
+  <p>T.McKeon</p>
+</footer>
+  </div>
+
+<script>
+// ========================== DATA (ROLODEX) ========================== //
+// Each entry in ROUND_DECK is a full 4×4 Connections set (4 categories × 4 words).
+// The app will cycle through these for each new round.
+const ROUND_DECK = [
+  // Set 1 — Steps of Statistical Reasoning
+  {
+    name: "Set 1 — Steps of Statistical Reasoning",
+    cats: [
+      { title: "Research Flow",     color: getCss('--catA') || '#3b82f6',
+        words: ["Question", "Data", "Model", "Interpretation"] },
+      { title: "Data Relationship",     color: getCss('--catB') || '#ef4444',
+        words: ["Exposure", "Outcome", "Association", "Causation"] },
+      { title: "Sources of Error",  color: getCss('--catC') || '#22c55e',
+        words: ["Bias", "Sampling", "Random", "Measurement"] },
+      { title: "Validity Types",    color: getCss('--catD') || '#f59e0b',
+        words: ["Internal", "External", "Construct", "Statistical"] },
+    ]
+  },
+
+  // Set 2 — Types of Variables & Measures
+ {
+  name: "Set 3 — Variables in Analysis",
+  cats: [
+    { title: "Variable Roles", color: getCss('--catA') || '#3b82f6',
+      words: ["Exposure", "Outcome", "Predictor", "Covariate"] },
+    { title: "Bias & Confounding", color: getCss('--catB') || '#ef4444',
+      words: ["Confounder", "Mediator", "Effect Modifier", "Collider"] },
+    { title: "Data Types", color: getCss('--catC') || '#22c55e',
+      words: ["Continuous", "Categorical", "Binary", "Ordinal"] },
+    { title: "Scales & Measures", color: getCss('--catD') || '#f59e0b',
+      words: ["Rate", "Proportion", "Score", "Index"] },
+  ]
+},
+
+  // Set 3 — Association vs. Causation
+  {
+    name: "Set 3 — Association vs. Causation",
+    cats: [
+      { title: "Association Indicators", color: getCss('--catA') || '#3b82f6',
+        words: ["Correlation", "Regression", "Relative Risk", "Odds Ratio"] },
+      { title: "Causal Clues",          color: getCss('--catB') || '#ef4444',
+        words: ["Temporality", "Dose–Response", "Biological Plausibility", "Experimentation"] },
+      { title: "Threats to Causality",  color: getCss('--catC') || '#22c55e',
+        words: ["Confounding", "Bias", "Effect Modification", "Chance"] },
+      { title: "Regression Output",            color: getCss('--catD') || '#f59e0b',
+        words: ["Intercept", "Slope (Beta)", "95% CIs", "Y-hat"] },
+    ]
+  },
+
+  // Set 4 — Modeling Logic
+  {
+    name: "Set 4 — Modeling Logic",
+    cats: [
+      { title: "Regression Building", color: getCss('--catA') || '#3b82f6',
+        words: ["Fit", "Bivariate", "Multicollinearity", "Residuals"] },
+      { title: "Model Types",         color: getCss('--catB') || '#ef4444',
+        words: ["Linear", "Logistic", "ANOVA", "Univariate"] },
+      { title: "Assessment Tools",    color: getCss('--catC') || '#22c55e',
+        words: ["R²", "F-statistic", "DF", "Ho = 0"] },
+      { title: "Interpretation Phrases", color: getCss('--catD') || '#f59e0b',
+        words: ["Holding other variables constant", "Per unit increase", "After adjustment", "Significant at p < 0.05"] },
+    ]
+  },
+
+  // Set 5 — Ethics, Communication & Application
+  {
+    name: "Set 5 — Ethics, Communication & Application",
+    cats: [
+      { title: "Ethical Principles",  color: getCss('--catA') || '#3b82f6',
+        words: ["Consent", "Privacy", "Transparency", "Equity"] },
+      { title: "Data Communication",  color: getCss('--catB') || '#ef4444',
+        words: ["Clarity", "Accessibility", "Visualization", "Storytelling"] },
+      { title: "Reproducibility",     color: getCss('--catC') || '#22c55e',
+        words: ["Code", "Documentation", "Open Data", "Peer Review"] },
+      { title: "Applied Contexts",    color: getCss('--catD') || '#f59e0b',
+        words: ["Public Health", "Medicine", "Environment", "Policy"] },
+    ]
+  },
+
+  // Set 6 — Inferential Thinking
+  {
+    name: "Set 6 — Inferential Thinking",
+    cats: [
+      { title: "Sampling Concepts",   color: getCss('--catA') || '#3b82f6',
+        words: ["Population", "Sample", "Random", "Stratified"] },
+      { title: "Estimation Tools",    color: getCss('--catB') || '#ef4444',
+        words: ["Mean", "SD", "SE", "Confidence Interval"] },
+      { title: "Testing Ideas",       color: getCss('--catC') || '#22c55e',
+        words: ["Null Hypothesis", "Alternative", "p-value", "Type I/II Error"] },
+      { title: "Interpretation Pitfalls", color: getCss('--catD') || '#f59e0b',
+        words: ["Misinterpret p", "Correlation ≠ Causation", "Overfitting", "Ignoring Power"] },
+    ]
+  },
+
+  // Set 7 — Epidemiologic Thinking
+  {
+    name: "Set 7 — Epidemiologic Thinking",
+    cats: [
+      { title: "Observational Designs", color: getCss('--catA') || '#3b82f6',
+        words: ["Cross-Sectional", "Cohort", "Case–Control", "Ecologic"] },
+      { title: "Experimental Designs",  color: getCss('--catB') || '#ef4444',
+        words: ["RCT", "Blinding", "Randomization", "Placebo"] },
+      { title: "Measures of Disease",   color: getCss('--catC') || '#22c55e',
+        words: ["Incidence", "Prevalence", "Mortality", "Risk Difference"] },
+      { title: "Validity Threats",      color: getCss('--catD') || '#f59e0b',
+        words: ["Selection Bias", "Information Bias", "Confounding", "Interaction"] },
+    ]
+  },
+
+  // Set 8 — Data Visualization Concepts
+  {
+    name: "Set 8 — Data Visualization Concepts",
+    cats: [
+      { title: "Exploratory Plots",     color: getCss('--catA') || '#3b82f6',
+        words: ["Histogram", "Scatterplot", "Boxplot", "Bar Chart"] },
+      { title: "Regression Diagnostics", color: getCss('--catB') || '#ef4444',
+        words: ["Residual Plot", "QQ Plot", "Influence Plot", "Leverage Plot"] },
+      { title: "Bad Practices",          color: getCss('--catC') || '#22c55e',
+        words: ["Cherry-Picking", "Misleading Axes", "Overplotting", "Lack of Labels"] },
+      { title: "Good Practices",         color: getCss('--catD') || '#f59e0b',
+        words: ["Context", "Clarity", "Contrast", "Accessibility"] },
+    ]
+  },
+];
+
+
+function getCss(varName){
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+// Hard mode only
+const hardMode = true;
+
+// ====================== GAME STATE ======================== //
+let state = {
+  round: 1,
+  deckIndex: 0, // which round from ROUND_DECK is active
+  cards: [], // {text, catIndex, selected, locked}
+  solved: [], // [{title,color,words[]}]
+  selection: [],
+  mistakesLeft: 3,
+};
+
+const els = {
+  board: document.getElementById('board'),
+  lives: document.getElementById('lives'),
+  toast: document.getElementById('toast'),
+  mistakesLeft: document.getElementById('mistakesLeft'),
+  roundLabel: document.getElementById('roundLabel'),
+  solvedGroups: document.getElementById('solvedGroups'),
+  btnShuffle: document.getElementById('btnShuffle'),
+  btnDeselect: document.getElementById('btnDeselect'),
+  btnSubmit: document.getElementById('btnSubmit'),
+  btnNew: document.getElementById('btnNew'),
+  btnShare: document.getElementById('btnShare'),
+  difficultyChip: document.getElementById('difficultyChip'),
+};
+
+function init(){
+  setupRound();
+  wireEvents();
+  render();
+}
+
+function pickRound(){
+  // Pick a random set from the deck
+  state.deckIndex = Math.floor(Math.random() * ROUND_DECK.length);
+  return ROUND_DECK[state.deckIndex];
+}
+
+function setupRound(){
+  const round = pickRound();
+  els.roundLabel.textContent = `Round ${state.round} — ${round.name}`;
+  state.cards = [];
+  state.solved = [];
+  state.selection = [];
+  state.mistakesLeft = 3;
+  const allCards = [];
+  round.cats.forEach((cat, catIndex)=>{
+    cat.words.forEach(w=> allCards.push({ text:w, catIndex, selected:false, locked:false }));
+  });
+  shuffle(allCards);
+  state.cards = allCards;
+  announce("New round loaded. Find four groups.");
+}
+
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } }
+
+function wireEvents(){
+  els.btnShuffle.addEventListener('click', ()=>{ if(endReached()) return; shuffle(state.cards); renderBoard(); announce('Shuffled.'); });
+  els.btnDeselect.addEventListener('click', ()=>{ deselectAll(); });
+  els.btnSubmit.addEventListener('click', onSubmit);
+  els.btnNew.addEventListener('click', ()=>{ state.round++; setupRound(); render(); });
+  els.btnShare.addEventListener('click', shareResult);
+  document.addEventListener('keydown', onKey);
+}
+
+function onKey(e){ if(e.key==='Enter'){onSubmit();} if(e.key==='Escape'){deselectAll();} if(e.key===' '){const a=document.activeElement;if(a&&a.classList.contains('card')){e.preventDefault();toggleSelect(parseInt(a.dataset.index,10));}} }
+
+function endReached(){ return state.solved.length===4; }
+
+function render(){ renderLives(); renderBoard(); renderSolved(); els.mistakesLeft.textContent=state.mistakesLeft; els.btnNew.classList.toggle('hidden',!endReached()); els.btnShare.classList.toggle('hidden',!endReached()); els.btnSubmit.disabled=endReached(); els.btnShuffle.disabled=endReached(); els.btnDeselect.disabled=endReached(); }
+
+function renderLives(){ els.lives.innerHTML=''; for(let i=0;i<3;i++){ const b=document.createElement('div'); b.className='life'+(i<(3-state.mistakesLeft)?' on':''); els.lives.appendChild(b);} }
+
+function renderBoard(){ els.board.innerHTML=''; const unsolved=state.cards.map((c,i)=>({...c,i})).filter(c=>!c.locked); unsolved.forEach((c)=>{ const div=document.createElement('button'); div.className='card'+(c.selected?' selected':''); div.setAttribute('role','gridcell'); div.dataset.index=c.i; div.textContent=c.text; div.addEventListener('click',()=>toggleSelect(c.i)); els.board.appendChild(div); }); }
+
+function renderSolved(){ els.solvedGroups.innerHTML=''; const round = ROUND_DECK[state.deckIndex]; state.solved.forEach(g=>{ const wrap=document.createElement('div'); wrap.className='group'; const head=document.createElement('div'); head.className='group-header'; head.style.background=`linear-gradient(180deg, ${hexWithAlpha(g.color,0.25)}, transparent)`; const title=document.createElement('div'); title.textContent=g.title; head.appendChild(title); const badge=document.createElement('div'); badge.style.width='12px'; badge.style.height='12px'; badge.style.borderRadius='99px'; badge.style.background=g.color; head.appendChild(badge); const words=document.createElement('div'); words.className='group-words'; g.words.forEach(w=>{ const p=document.createElement('div'); p.className='pill'; p.textContent=w; words.appendChild(p); }); wrap.appendChild(head); wrap.appendChild(words); els.solvedGroups.appendChild(wrap); }); }
+
+function toggleSelect(i){ const card=state.cards[i]; if(card.locked)return; if(!card.selected&&selectionCount()===4){flashToast('You already have 4 selected.');return;} card.selected=!card.selected; if(card.selected)state.selection.push(i); else state.selection=state.selection.filter(x=>x!==i); renderBoard(); }
+function selectionCount(){return state.selection.length;}
+function deselectAll(){ state.selection.forEach(i=>state.cards[i].selected=false); state.selection=[]; renderBoard(); }
+function onSubmit(){ if(endReached())return; if(selectionCount()!==4){flashToast('Select exactly 4 cards.');return;} const cats=[...new Set(state.selection.map(i=>state.cards[i].catIndex))]; if(cats.length===1){ const catIndex=cats[0]; const round=ROUND_DECK[state.deckIndex]; const catMeta=round.cats[catIndex]; const groupWords=state.selection.map(i=>state.cards[i].text); state.selection.forEach(i=>{state.cards[i].locked=true;state.cards[i].selected=false;}); state.solved.push({title:catMeta.title,color:catMeta.color,words:groupWords}); state.selection=[]; flashToast('Nice! You found a group.'); render(); if(endReached())onWin(); } else { state.mistakesLeft--; highlightIncorrect(); flashToast(`Not quite — ${state.mistakesLeft} mistake${state.mistakesLeft===1?'':'s'} left.`); if(state.mistakesLeft<=0)onLoss(); renderLives(); els.board.animate([{transform:'translateX(0px)'},{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'translateX(0px)'}],{duration:180}); } }
+function highlightIncorrect(){ const selectedSet=new Set(state.selection); [...els.board.children].forEach(btn=>{ const i=parseInt(btn.dataset.index,10); if(selectedSet.has(i)){btn.classList.add('bad'); setTimeout(()=>btn.classList.remove('bad'),350);} }); }
+function onWin(){ flashToast('All groups solved!'); els.btnNew.classList.remove('hidden'); els.btnShare.classList.remove('hidden'); }
+function onLoss(){ const round=ROUND_DECK[state.deckIndex]; const remainingByCat=new Map(); state.cards.forEach((c,i)=>{if(c.locked)return;if(!remainingByCat.has(c.catIndex))remainingByCat.set(c.catIndex,[]); remainingByCat.get(c.catIndex).push({text:c.text,i});}); remainingByCat.forEach((items,catIndex)=>{ const catMeta=round.cats[catIndex]; state.solved.push({title:catMeta.title,color:catMeta.color,words:items.map(x=>x.text)}); }); state.cards.forEach(c=>{if(!c.locked)c.locked=true;c.selected=false;}); state.selection=[]; render(); flashToast('Out of mistakes — revealing remaining groups.'); els.btnNew.classList.remove('hidden'); els.btnShare.classList.remove('hidden'); }
+function flashToast(msg){els.toast.textContent=msg;}
+function announce(msg){els.toast.textContent=msg;}
+function hexWithAlpha(hex,alpha){const h=hex.replace('#','');if(h.length!==6)return hex;const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);return`rgba(${r},${g},${b},${alpha})`;}
+function shareResult(){
+  const solvedTitles = state.solved.map(g => g.title).join(' · ');
+  const mistakes = 3 - state.mistakesLeft;
+  const roundName = ROUND_DECK[state.deckIndex].name;
+  const text = `Biostats Connections — ${roundName} — solved ${state.solved.length}/4 groups, mistakes: ${mistakes}. Groups: ${solvedTitles}`;
+
+  if (navigator.share) {
+    navigator.share({ text }).catch(() => flashToast('Share canceled.'));
+  } else {
+    navigator.clipboard.writeText(text).then(() => flashToast('Result copied to clipboard!'));
+  }
+}
+init();
+</script>
+</body>
+</html>
+
